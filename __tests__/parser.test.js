@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parse, version } from '../index.js';
+import { parse, version, SyntaxError as PegSyntaxError } from '../index.js';
 
 describe('parwik', () => {
     describe('version', () => {
@@ -1068,6 +1068,527 @@ describe('parwik', () => {
                 }
             }
             expect(foundRef).toBe(true);
+        });
+    });
+
+    describe('SyntaxError export', () => {
+        it('should export PegSyntaxError class', () => {
+            expect(PegSyntaxError).toBeDefined();
+            expect(PegSyntaxError.prototype).toBeInstanceOf(SyntaxError);
+        });
+
+        it('should throw PegSyntaxError on invalid input', () => {
+            try {
+                parse('< invalid');
+                expect.unreachable('should have thrown');
+            } catch (e) {
+                expect(e).toBeInstanceOf(PegSyntaxError);
+                expect(e.name).toBe('SyntaxError');
+                expect(e.expected).toBeDefined();
+                expect(e.found).toBeDefined();
+                expect(e.location).toBeDefined();
+            }
+        });
+    });
+
+    describe('error formatting', () => {
+        it('should format error with source text (src branch)', () => {
+            const source = 'test-source';
+            try {
+                parse('< bad', { grammarSource: source });
+                expect.unreachable('should have thrown');
+            } catch (e) {
+                const formatted = e.format([{ source, text: '< bad' }]);
+                expect(formatted).toContain('Error:');
+                expect(formatted).toContain('test-source');
+                expect(formatted).toContain('^');
+                expect(formatted).toContain(' | ');
+            }
+        });
+
+        it('should format error without matching source (else branch)', () => {
+            const source = 'my-source';
+            try {
+                parse('< bad', { grammarSource: source });
+                expect.unreachable('should have thrown');
+            } catch (e) {
+                const formatted = e.format([{ source: 'other-source', text: '' }]);
+                expect(formatted).toContain('Error:');
+                expect(formatted).toContain(' at ');
+                expect(formatted).toContain('my-source');
+            }
+        });
+
+        it('should format error without location', () => {
+            const err = new PegSyntaxError('test message', null, null, null);
+            const formatted = err.format([]);
+            expect(formatted).toBe('Error: test message');
+        });
+
+        it('should format error with source.offset function', () => {
+            const source = {
+                offset(pos) { return pos; },
+                toString() { return 'offset-source'; }
+            };
+            try {
+                parse('< bad', { grammarSource: source });
+                expect.unreachable('should have thrown');
+            } catch (e) {
+                const formatted = e.format([{ source, text: '< bad' }]);
+                expect(formatted).toContain('offset-source');
+                expect(formatted).toContain('^');
+            }
+        });
+
+        it('should format multi-line error with correct location', () => {
+            const source = 'multiline';
+            const input = 'hello\n< bad';
+            try {
+                parse(input, { grammarSource: source });
+                expect.unreachable('should have thrown');
+            } catch (e) {
+                const formatted = e.format([{ source, text: input }]);
+                expect(formatted).toContain('multiline');
+                expect(formatted).toContain('^');
+            }
+        });
+
+        it('should format error spanning to end of line', () => {
+            const source = 'span-test';
+            try {
+                parse('x\n< bad\nmore', { grammarSource: source });
+                expect.unreachable('should have thrown');
+            } catch (e) {
+                const formatted = e.format([{ source, text: 'x\n< bad\nmore' }]);
+                expect(formatted).toContain('span-test');
+                expect(formatted).toContain('^');
+            }
+        });
+    });
+
+    describe('error messages (buildMessage coverage)', () => {
+        it('should include literal expectation in message', () => {
+            try {
+                parse('{{unclosed');
+                expect.unreachable('should have thrown');
+            } catch (e) {
+                expect(e.message).toContain('Expected');
+                expect(e.message).toContain('found');
+            }
+        });
+
+        it('should include class expectation in message', () => {
+            try {
+                parse('< ');
+                expect.unreachable('should have thrown');
+            } catch (e) {
+                expect(e.message).toContain('Expected');
+                expect(e.expected.some(exp => exp.type === 'class')).toBe(true);
+            }
+        });
+
+        it('should describe end of input when found is null', () => {
+            try {
+                parse("'''unclosed bold");
+                expect.unreachable('should have thrown');
+            } catch (e) {
+                expect(e.message).toContain('end of input');
+            }
+        });
+
+        it('should describe found character in message', () => {
+            try {
+                parse('< invalid');
+                expect.unreachable('should have thrown');
+            } catch (e) {
+                expect(e.found).toBe(' ');
+                expect(e.message).toContain('" "');
+            }
+        });
+
+        it('should treat single = heading as plain text (no error)', () => {
+            const result = parse('= heading\n');
+            expect(result[0].type).toBe('text');
+        });
+
+        it('should handle two expectations (or branch)', () => {
+            try {
+                parse('[not-a-url text]');
+                expect.unreachable('should have thrown');
+            } catch (e) {
+                expect(e.expected.length).toBeGreaterThanOrEqual(1);
+                expect(e.message).toContain('Expected');
+            }
+        });
+
+        it('should handle multiple expectations (comma-or branch)', () => {
+            try {
+                parse('< ');
+                expect.unreachable('should have thrown');
+            } catch (e) {
+                expect(e.expected.length).toBeGreaterThanOrEqual(1);
+                expect(e.message).toContain('Expected');
+            }
+        });
+
+        it('should build message with end expectation type', () => {
+            const msg = PegSyntaxError.buildMessage([{ type: 'end' }], 'x');
+            expect(msg).toBe('Expected end of input but "x" found.');
+        });
+
+        it('should build message with other expectation type', () => {
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'other', description: 'whitespace' }], 'x'
+            );
+            expect(msg).toBe('Expected whitespace but "x" found.');
+        });
+
+        it('should build message with any expectation type', () => {
+            const msg = PegSyntaxError.buildMessage([{ type: 'any' }], null);
+            expect(msg).toBe('Expected any character but end of input found.');
+        });
+
+        it('should build message with two expectations (or)', () => {
+            const msg = PegSyntaxError.buildMessage([
+                { type: 'literal', text: 'a', ignoreCase: false },
+                { type: 'literal', text: 'b', ignoreCase: false }
+            ], 'x');
+            expect(msg).toBe('Expected "a" or "b" but "x" found.');
+        });
+
+        it('should build message with three+ expectations (comma-or)', () => {
+            const msg = PegSyntaxError.buildMessage([
+                { type: 'literal', text: 'a', ignoreCase: false },
+                { type: 'literal', text: 'b', ignoreCase: false },
+                { type: 'literal', text: 'c', ignoreCase: false }
+            ], 'x');
+            expect(msg).toBe('Expected "a", "b", or "c" but "x" found.');
+        });
+
+        it('should build message with class expectation (range)', () => {
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'class', parts: [['a', 'z']], inverted: false, ignoreCase: false, unicode: false }],
+                '1'
+            );
+            expect(msg).toBe('Expected [a-z] but "1" found.');
+        });
+
+        it('should build message with inverted class expectation', () => {
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'class', parts: [['a', 'z']], inverted: true, ignoreCase: false, unicode: false }],
+                '1'
+            );
+            expect(msg).toContain('[^a-z]');
+        });
+
+        it('should build message with unicode class expectation', () => {
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'class', parts: ['a'], inverted: false, ignoreCase: false, unicode: true }],
+                'x'
+            );
+            expect(msg).toContain('[a]u');
+        });
+
+        it('should build message with null found (end of input)', () => {
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'literal', text: 'a', ignoreCase: false }], null
+            );
+            expect(msg).toBe('Expected "a" but end of input found.');
+        });
+
+        it('should escape special chars in literal expectations', () => {
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'literal', text: '\t\n\r\"\\\0', ignoreCase: false }], 'x'
+            );
+            expect(msg).toContain('\\t');
+            expect(msg).toContain('\\n');
+            expect(msg).toContain('\\r');
+            expect(msg).toContain('\\"');
+            expect(msg).toContain('\\\\');
+            expect(msg).toContain('\\0');
+        });
+
+        it('should escape control chars 0x01-0x0F with hex in literal', () => {
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'literal', text: '\x01\x0F', ignoreCase: false }], 'x'
+            );
+            expect(msg).toContain('\\x0');
+        });
+
+        it('should escape control chars 0x10-0x1F with hex in literal', () => {
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'literal', text: '\x15', ignoreCase: false }], 'x'
+            );
+            expect(msg).toContain('\\x15');
+        });
+
+        it('should escape control chars 0x7F-0x9F with hex in literal', () => {
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'literal', text: '\x7F\x9F', ignoreCase: false }], 'x'
+            );
+            expect(msg).toContain('\\x7F');
+        });
+
+        it('should escape control chars in class expectations', () => {
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'class', parts: [['\x01', '\x05']], inverted: false, ignoreCase: false, unicode: false }],
+                'x'
+            );
+            expect(msg).toContain('\\x0');
+        });
+
+        it('should escape class-specific chars in class expectations', () => {
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'class', parts: ['\\', ']', '^', '-', '\0', '\t', '\n', '\r'], inverted: false, ignoreCase: false, unicode: false }],
+                'x'
+            );
+            expect(msg).toContain('\\\\');
+            expect(msg).toContain('\\]');
+            expect(msg).toContain('\\^');
+            expect(msg).toContain('\\-');
+            expect(msg).toContain('\\0');
+            expect(msg).toContain('\\t');
+            expect(msg).toContain('\\n');
+            expect(msg).toContain('\\r');
+        });
+
+        it('should escape 0x10-0x1F range in class expectations', () => {
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'class', parts: [['\x10', '\x1F']], inverted: false, ignoreCase: false, unicode: false }],
+                'x'
+            );
+            expect(msg).toContain('\\x10');
+            expect(msg).toContain('\\x1F');
+        });
+
+        it('should escape unicode non-printable in literal via unicodeEscape', () => {
+            const combiningMark = '̀';
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'literal', text: combiningMark, ignoreCase: false }], 'x'
+            );
+            expect(msg).toContain('\\u{300}');
+        });
+
+        it('should escape found control character in message', () => {
+            const msg = PegSyntaxError.buildMessage(
+                [{ type: 'literal', text: 'a', ignoreCase: false }], '\x01'
+            );
+            expect(msg).toContain('\\x01');
+        });
+
+        it('should deduplicate identical expectations', () => {
+            const msg = PegSyntaxError.buildMessage([
+                { type: 'literal', text: 'a', ignoreCase: false },
+                { type: 'literal', text: 'a', ignoreCase: false },
+                { type: 'literal', text: 'b', ignoreCase: false }
+            ], 'x');
+            expect(msg).toBe('Expected "a" or "b" but "x" found.');
+        });
+    });
+
+    describe('parser options', () => {
+        it('should accept valid startRule option', () => {
+            const result = parse('hello', { startRule: 'Document' });
+            expect(result).toEqual([{ type: 'text', value: 'hello' }]);
+        });
+
+        it('should throw on invalid startRule option', () => {
+            expect(() => parse('hello', { startRule: 'Invalid' }))
+                .toThrow("Can't start parsing from rule");
+        });
+
+        it('should return library result with peg$library option', () => {
+            const result = parse('hello', { peg$library: true });
+            expect(result.peg$result).toBeDefined();
+            expect(result.peg$success).toBe(true);
+            expect(result.peg$throw).toBeUndefined();
+        });
+
+        it('should return failed library result for invalid input', () => {
+            const result = parse('< bad', { peg$library: true });
+            expect(result.peg$success).toBe(false);
+            expect(result.peg$throw).toBeInstanceOf(Function);
+        });
+    });
+
+    describe('parse errors on invalid input', () => {
+        it('should throw on unclosed bold', () => {
+            expect(() => parse("'''unclosed")).toThrow();
+        });
+
+        it('should throw on unclosed italic', () => {
+            expect(() => parse("''unclosed")).toThrow();
+        });
+
+        it('should throw on unclosed XML tag', () => {
+            expect(() => parse('<div>unclosed')).toThrow();
+        });
+
+        it('should throw on mismatched XML tag names', () => {
+            expect(() => parse('<div>text</span>')).toThrow();
+        });
+
+        it('should throw on unclosed template', () => {
+            expect(() => parse('{{unclosed')).toThrow();
+        });
+
+        it('should throw on unclosed external link', () => {
+            expect(() => parse('[https://example.com unclosed')).toThrow();
+        });
+
+        it('should throw on unclosed internal link', () => {
+            expect(() => parse('[[unclosed')).toThrow();
+        });
+
+        it('should throw on bare < followed by non-alpha', () => {
+            expect(() => parse('text < more')).toThrow();
+        });
+
+        it('should throw on < followed by digit', () => {
+            expect(() => parse('<1tag>text</1tag>')).toThrow();
+        });
+
+        it('should throw on XML tag with malformed attribute', () => {
+            expect(() => parse('<div 123="bad">text</div>')).toThrow();
+        });
+
+        it('should parse mismatched = counts as heading with extra = in content', () => {
+            const result = parse('== heading ===\n');
+            expect(result[0].type).toBe('heading');
+            expect(result[0].level).toBe(2);
+            expect(result[0].content).toBe('heading =');
+        });
+
+        it('should throw on more than 6 = in heading', () => {
+            expect(() => parse('======= h7 =======\n')).toThrow();
+        });
+
+        it('should throw on XML self-closing tag missing /', () => {
+            expect(() => parse('<br >')).toThrow();
+        });
+    });
+
+    describe('parser backtracking paths', () => {
+        it('should throw on heading with no content before newline', () => {
+            expect(() => parse('== no close\n')).toThrow();
+        });
+
+        it('should throw on [ without URL scheme', () => {
+            expect(() => parse('text [no-url] more')).toThrow();
+        });
+
+        it('should throw on empty template {{}}', () => {
+            expect(() => parse('{{}}')).toThrow();
+        });
+
+        it('should throw on bare [ in text', () => {
+            expect(() => parse('before [ after')).toThrow();
+        });
+
+        it('should throw on == with only newline after', () => {
+            expect(() => parse('==\n')).toThrow();
+        });
+
+        it('should throw on XML tag with missing = in attribute', () => {
+            expect(() => parse('<div class>text</div>')).toThrow();
+        });
+
+        it('should throw on XML tag with unclosed attribute value', () => {
+            expect(() => parse('<div class="abc>text</div>')).toThrow();
+        });
+
+        it('should throw on external link missing description', () => {
+            expect(() => parse('[https://url]')).toThrow();
+        });
+
+        it('should throw on internal link with empty label', () => {
+            expect(() => parse('[[Title|]]')).toThrow();
+        });
+
+        it('should throw on template with pipe but no name', () => {
+            expect(() => parse('{{|val}}')).toThrow();
+        });
+
+        it('should throw on unclosed self-closing tag', () => {
+            expect(() => parse('<br /')).toThrow();
+        });
+
+        it('should throw on XML open tag without close', () => {
+            expect(() => parse('<div attr="val"')).toThrow();
+        });
+
+        it('should parse newline-separated text', () => {
+            const result = parse('a\nb\nc');
+            expect(result[0].type).toBe('text');
+            expect(result[0].value).toBe('a\nb\nc');
+        });
+    });
+
+    describe('edge cases for parser branches', () => {
+        it('should parse heading at end of input (no trailing newline)', () => {
+            expect(parse('== Heading ==')).toEqual([
+                { type: 'heading', level: 2, content: 'Heading' }
+            ]);
+        });
+
+        it('should parse tag name with digits and hyphens', () => {
+            const result = parse('<h2-custom>text</h2-custom>');
+            expect(result[0].type).toBe('xml_tag');
+            expect(result[0].name).toBe('h2-custom');
+        });
+
+        it('should parse tag name with colons', () => {
+            const result = parse('<xml:ns>text</xml:ns>');
+            expect(result[0].type).toBe('xml_tag');
+            expect(result[0].name).toBe('xml:ns');
+        });
+
+        it('should parse attribute with empty value', () => {
+            const result = parse('<div class="">text</div>');
+            expect(result[0].attrs).toEqual([{ key: 'class', value: '' }]);
+        });
+
+        it('should parse self-closing tag with whitespace before />', () => {
+            const result = parse('<br />');
+            expect(result[0]).toEqual({
+                type: 'xml_tag',
+                name: 'br',
+                attrs: [],
+                selfClosing: true,
+                children: []
+            });
+        });
+
+        it('should parse template with whitespace around name', () => {
+            const result = parse('{{ Spaced }}');
+            expect(result[0].type).toBe('template');
+            expect(result[0].name).toBe('Spaced');
+        });
+
+        it('should parse template with empty param value', () => {
+            const result = parse('{{tpl|}}');
+            expect(result[0].type).toBe('template');
+            expect(result[0].params).toHaveLength(1);
+            expect(result[0].params[0].value).toEqual([]);
+        });
+
+        it('should parse consecutive headings', () => {
+            const result = parse('== A ==\n=== B ===\n');
+            expect(result).toEqual([
+                { type: 'heading', level: 2, content: 'A' },
+                { type: 'heading', level: 3, content: 'B' }
+            ]);
+        });
+
+        it('should parse single character text', () => {
+            expect(parse('x')).toEqual([{ type: 'text', value: 'x' }]);
+        });
+
+        it('should parse template immediately followed by text', () => {
+            const result = parse('{{tpl}}text');
+            expect(result).toHaveLength(2);
+            expect(result[0].type).toBe('template');
+            expect(result[1]).toEqual({ type: 'text', value: 'text' });
         });
     });
 });
