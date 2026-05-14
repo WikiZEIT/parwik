@@ -4,9 +4,9 @@
 [Parwik: Simple Wiki Parser in JavaScript](https://github.com/jcubic/parwik)
 
 [![npm](https://img.shields.io/badge/npm-0.1.0-blue.svg)](https://www.npmjs.com/package/parwik)
-[![CI](https://github.com/jcubic/parwik/actions/workflows/test.yaml/badge.svg)](https://github.com/jcubic/parwik/actions/workflows/test.yaml)
-[![Coverage Status](https://coveralls.io/repos/github/jcubic/parwik/badge.svg?branch=master)](https://coveralls.io/github/jcubic/parwik?branch=master)
-[![LICENSE MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/jcubic/parwik/blob/master/LICENSE)
+[![CI](https://github.com/WikiZEIT/parwik/actions/workflows/test.yaml/badge.svg)](https://github.com/WikiZEIT/parwik/actions/workflows/test.yaml)
+[![Coverage Status](https://coveralls.io/repos/github/WikiZEIT/parwik/badge.svg?branch=master)](https://coveralls.io/github/WikiZEIT/parwik?branch=master)
+[![LICENSE MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/WikiZEIT/parwik/blob/master/LICENSE)
 
 ## Installation
 
