@@ -4,9 +4,15 @@
   "description": "Simple Wiki parser",
   "main": "index.js",
   "scripts": {
-    "build": "peggy -o parser.js ./src/grammar.peg"
+    "build": "peggy -o parser.js ./src/grammar.peg",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage"
   },
-  "keywords": ["parser", "wikipedia", "wiki"],
+  "keywords": [
+    "parser",
+    "wikipedia",
+    "wiki"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jcubic/parwik.git"
@@ -15,6 +21,8 @@
   "author": "Jakub T. Jankiewicz <jcubic@onet.pl> (https://jakub.jankiewicz.org/)",
   "license": "MIT",
   "devDependencies": {
-    "peggy": "^5.0.6"
+    "@vitest/coverage-v8": "^4.1.6",
+    "peggy": "^5.0.6",
+    "vitest": "^4.1.6"
   }
 }

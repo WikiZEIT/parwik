@@ -1,3 +1,6 @@
 test.mjs
 src
+__tests__
+.github
+vitest.config.js
 *~
