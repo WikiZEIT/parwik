@@ -1,7 +1,7 @@
 
 # Parwik
 
-[Parwik: Simple Wiki Parser in JavaScript](https://github.com/jcubic/parwik)
+[Parwik: Simple Wiki Parser in JavaScript](https://github.com/WikiZEIT/parwik)
 
 [![npm](https://img.shields.io/badge/npm-0.1.0-blue.svg)](https://www.npmjs.com/package/parwik)
 [![CI](https://github.com/WikiZEIT/parwik/actions/workflows/test.yaml/badge.svg)](https://github.com/WikiZEIT/parwik/actions/workflows/test.yaml)
@@ -21,7 +21,7 @@ import { parse } from 'parwik';
 
 console.log(parse(`== This is Header ==
 
-This is some [[Source Code]], which demostrates parwik library<ref>[https://github.com/jcubic/parwik parwik on GitHub]</ref>
+This is some [[Source Code]], which demostrates parwik library<ref>[https://github.com/WikiZEIT/parwik parwik on GitHub]</ref>
 `));
 ```
 
@@ -32,13 +32,8 @@ npm test
 npm run coverage
 ```
 
-## Support
-
-🚀 Need [professional help with Wikipedia integration or staff training](https://jcubic.pl/wikipedia/)?
-Check out my Wikipedia Services.
-
 ## License
 
 Copyright (c) 2026 [Jakub T. Jankiewicz](https://jakub.jankiewicz.org/)
 
-Released under the MIT License. See [LICENSE](https://github.com/jcubic/parwik/blob/master/LICENSE) for details.
+Released under the [MIT License](https://github.com/jcubic/parwik/blob/master/LICENSE)
