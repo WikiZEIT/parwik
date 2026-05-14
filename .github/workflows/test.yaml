@@ -46,7 +46,7 @@ jobs:
 
   coveralls:
     needs: test
-    if: github.event_name == 'push' && github.repository == 'jcubic/parwik'
+    if: github.event_name == 'push' && github.repository == 'WikiZEIT/parwik'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
